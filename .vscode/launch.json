@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(lldb) Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/${workspaceFolderBasename}",
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/bin",
+            "logging": {
+                "moduleLoad": false
+            },
+            "internalConsoleOptions": "openOnSessionStart",
+            "targetArchitecture": "x86_64",
+            "externalConsole": false,
+            "osx": {
+                "MIMode": "lldb"
+            },
+            "preLaunchTask": "make"
+        }
+    ]
+}
