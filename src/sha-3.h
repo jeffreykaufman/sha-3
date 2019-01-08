@@ -9,7 +9,9 @@
 #define ROL(bitstring, offset) ((((uint64_t) bitstring) << offset) ^ (((uint64_t) bitstring) >> (sizeof(uint64_t) * 8 - offset)))
 #define i(x, y) ((5 * y) + x)
 
+void print_uint64_array(uint64_t *A, int length);
 void print_state_array(uint64_t *A);
+void print_uint8_array(uint8_t *A, int length);
 void theta(uint64_t *A);
 void rho(uint64_t *A, int w);
 void pi(uint64_t *A);
@@ -20,6 +22,6 @@ void keccak_p_permute(int b, int n_r, uint64_t *A);
 void keccak_f_permute(int b, uint64_t *A);
 uint64_t *pad10_1();
 uint64_t *uint8_to_uint64(uint8_t *X, int X_count);
-void keccak(int b, int r, uint8_t *M, int M_length, uint64_t suffix, uint8_t *d, int d_length);
+void keccak(int b, int r, uint8_t *M, int M_length, uint8_t *d, int d_length);
 
 #endif

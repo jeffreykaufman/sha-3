@@ -1,5 +1,13 @@
 #include "sha-3.h"
 
+void print_uint64_array(uint64_t *A, int length)
+{
+    for(int i = 0; i < length; i++)
+    {
+        printf("%016llX (%d)\n", A[i], i);
+    }
+}
+
 void print_state_array(uint64_t *A)
 {
     for(int j = 0; j < 5; j++)
@@ -10,6 +18,14 @@ void print_state_array(uint64_t *A)
         }
 
         printf("\n");
+    }
+}
+
+void print_uint8_array(uint8_t *A, int length)
+{
+    for(int i = 0; i < length; i++)
+    {
+        printf("%02hhX (%d)\n", A[i], i);
     }
 }
 
@@ -137,25 +153,25 @@ void keccak_p_permute(int b, int n_r, uint64_t *A)
     for(int i_r = 0; i_r < n_r; i_r++)
     {
         theta(A);
-        printf("After Theta Step (%d)\n", i_r);
-        print_state_array(A);
-        printf("\n");
+        //printf("After Theta Step (%d)\n", i_r);
+        //print_state_array(A);
+        //printf("\n");
         rho(A, b / 25);
-        printf("After Rho Step (%d)\n", i_r);
-        print_state_array(A);
-        printf("\n");
+        //printf("After Rho Step (%d)\n", i_r);
+        //print_state_array(A);
+        //printf("\n");
         pi(A);
-        printf("After Pi Step (%d)\n", i_r);
-        print_state_array(A);
-        printf("\n");
+        //printf("After Pi Step (%d)\n", i_r);
+        //print_state_array(A);
+        //printf("\n");
         chi(A);
-        printf("After Chi Step (%d)\n", i_r);
-        print_state_array(A);
-        printf("\n");
+        //printf("After Chi Step (%d)\n", i_r);
+        //print_state_array(A);
+        //printf("\n");
         iota(A, log2(b / 25), i_r);
-        printf("After Iota Step (%d)\n", i_r);
-        print_state_array(A);
-        printf("\n");
+        //printf("After Iota Step (%d)\n", i_r);
+        //print_state_array(A);
+        //printf("\n");
     }
 
     printf("State After Permutation\n");
@@ -170,8 +186,9 @@ void keccak_f_permute(int b, uint64_t *A)
 
 uint64_t *uint8_to_uint64(uint8_t *X, int X_count)
 {
-    int n = (X_count / 8) + (X_count % 8 != 0);
-    uint64_t Y[n];
+    int n = (X_count / sizeof(uint8_t)) + (X_count % sizeof(uint8_t) != 0);
+    uint64_t *Y = malloc((sizeof(uint64_t) / sizeof(uint8_t)) * n);
+    memset(Y, 0, (sizeof(uint64_t) / sizeof(uint8_t)) * n);
 
     for(int j = 0; j < n; j++)
     {
@@ -181,64 +198,137 @@ uint64_t *uint8_to_uint64(uint8_t *X, int X_count)
         }
     }
 
-    for(int i = 0; i < n; i++)
-    {
-        printf("%016llX\n", Y[i]);
-    }
-
     return Y;
 }
 
-void keccak(int b, int r, uint8_t *M_8, int M_length, uint64_t suffix, uint8_t *d, int d_length)
+void keccak(int b, int r, uint8_t *M_8, int M_length, uint8_t *d, int d_length)
 {
     if((b % 8 != 0) || (r % 8 != 0))
     {
         return;
     }
 
-    uint64_t *M_64 = uint8_to_uint64(M_8, (M_length / 8) + (M_length % 8 != 0));
+    int r_byte_length = r / 8;
+    int M_byte_length = (M_length / 8) + (M_length % 8 != 0);
+    int d_byte_length = (d_length / 8) + (d_length % 8 != 0);
+
+    uint64_t *M_64 = uint8_to_uint64(M_8, M_byte_length);
     int M_64_count = (M_length / 64) + (M_length % 64 != 0);
 
-    int n = (M_length / r) + (M_length % r != 0);
-    int c = b - r;
+    printf("Length (in bits) of message: %d\n", M_length);
+    printf("Length (in bytes) of message: %d\n", M_byte_length);
+    printf("# of 64-bit integers in message: %d\n", M_64_count);
+    print_uint64_array(M_64, M_64_count);
+    printf("Currently, the message %s divisible by r. (M_length / r = %d)\n", M_length % r == 0 ? "is" : "is not", M_length / r);
 
-    uint64_t *M = M_64;
+    int n = 1;
 
-    if((n * r) - M_length < 2)
+    while(M_length + 2 > n * r)
     {
-        M = malloc((sizeof(*M_64) * M_64_count) + (r / 8));
-        memcpy(M, M_64, sizeof(*M_64) * M_64_count);
-        memset(M + (sizeof(*M_64) * M_64_count), 0, r / 8);
-
-        M[(M_length + 1) / 64] |= ((uint64_t) 0x1) << (M_length % 64);
-        M[M_64_count - 1] |= ((uint64_t) 0x1) << 64;
-
         n++;
     }
 
-    uint64_t A[b / 64];
-    memset(A, 0, sizeof(A));
+    printf("In the end, r should divide the message %d times.\n", n);
 
-    while(n > 0)
+    int new_count = M_64_count;
+
+    printf("The initial new count of 64-bit integers is %d.\n", new_count);
+
+    while(n * r > (8 * sizeof(uint64_t)) * new_count)
     {
-        for(int i = 0; i < r / 64; i++)
+        new_count += 1;
+    }
+
+    printf("%d 64-bit integers will be required due to padding.\n", new_count);
+
+    uint64_t *M = malloc(8 * new_count * sizeof(uint64_t));
+    memcpy(M, M_64, sizeof(uint64_t) * M_64_count);
+    memset(M + M_64_count, 0, r_byte_length - M_byte_length);
+
+    M[(M_length + 1) / 64] |= ((uint64_t) 0x1) << (M_length % 64);
+    M[new_count - 1] |= ((uint64_t) 0x1) << 63;
+
+    print_uint64_array(M, new_count);
+
+    // Must be modified to be dynamic rather than static.
+    uint64_t *A = malloc((b / 64) * 8);
+    memset(A, 0, b / 64 * 8);
+
+    for(int j = 0; j < n; j++)
+    {
+        for(int k = 0; k < r / 64; k++)
         {
-            A[i] ^= M_64[(r / 64 * n) + i];
+            A[k] ^= M[(25 * j) + k];
         }
 
         keccak_f_permute(b, A);
-        n--;
     }
 
-    while(d_length / 8 > 0)
+    memset(d, 0, d_byte_length);
+    print_uint8_array(d, d_byte_length);
+
+    int x = 0;
+
+    for(int i = 0; i < d_byte_length; i++)
     {
-        int block_byte_size = (d_length / 8 < r / 8 ? d_length / 8 : r / 8);
-        memcpy(d, A, block_byte_size);
+        printf("Byte #%d of the digest is from 64-bit interger with index %d. It is the byte with index %d inside the 64-bit interger.\n", i, i / 8, x);
 
-        d += block_byte_size;
-        keccak_f_permute(b, A);
-        d_length -= block_byte_size * 8;
+        d[i] = (A[i / 8] >> (8 * x)) & 0xFF;
+
+        x++;
+
+        if((i != 0) && (i % r_byte_length == 0))
+        {
+            keccak_f_permute(b, A);
+            x = 0;
+        }
     }
+
+    print_uint8_array(d, d_byte_length);
+
+    // n is wrong
+    // int n = (M_length / r) + (M_length % r != 0);
+    // if(((8 * sizeof(uint64_t)) * M_64_count) - M_length < 2)
+    // {
+    //     M_byte_length += sizeof(uint64_t);
+    //     M_64_count++;
+    // }
+    // uint64_t *M = malloc(M_byte_length);
+    // memcpy(M, M_64, sizeof(*M_64) * M_64_count);
+    // memset(M + (sizeof(*M_64) * M_64_count), 0, r / 8);
+    //print_uint64_array(M, (n * r) / sizeof(*M_64));
+    // uint64_t *M = M_64;
+    // printf("%d\n", (n * r) - M_length);
+    // if((n * r) - M_length < 2)
+    // {
+    //     printf("%lu\n", (sizeof(*M_64) * M_64_count) + (r / 8));
+    //     M = malloc((sizeof(*M_64) * M_64_count) + (r / 8));
+    //     memcpy(M, M_64, ;
+    //     memset();
+    //     n++;
+    // }
+    // M[(M_length + 1) / 64] |= ((uint64_t) 0x1) << (M_length % 64);
+    // M[M_64_count - 1] |= ((uint64_t) 0x1) << 64;
+    // print_uint64_array(M, n);
+    // uint64_t A[b / 64];
+    // memset(A, 0, sizeof(A));
+    // while(n > 0)
+    // {
+    //     for(int i = 0; i < r / 64; i++)
+    //     {
+    //         A[i] ^= M_64[(r / 64 * n) + i];
+    //     }
+    //     keccak_f_permute(b, A);
+    //     n--;
+    // }
+    // while(d_length / 8 > 0)
+    // {
+    //     int block_byte_size = (d_length / 8 < r / 8 ? d_length / 8 : r / 8);
+    //     memcpy(d, A, block_byte_size);
+    //     d += block_byte_size;
+    //     keccak_f_permute(b, A);
+    //     d_length -= block_byte_size * 8;
+    // }
 }
 
 // void keccak(int b, int r, uint8_t *M, int M_length, uint64_t suffix, uint8_t *d, int d_length)
@@ -320,20 +410,22 @@ void keccak(int b, int r, uint8_t *M_8, int M_length, uint64_t suffix, uint8_t *
 
 int main(int argc, const char *argv[])
 {
-    // uint8_t M[18] = {
-    //     0x4A, 0x65, 0x66, 0x66, 0x72,
-    //     0x65, 0x79, 0x20, 0x41, 0x2E,
-    //     0x20, 0x4B, 0x61, 0x75, 0x66,
-    //     0x6D, 0x61, 0x6E
-    // };
+    int b = 1600;
+    int r = 576;
+    int d_length = 512;
 
     uint8_t M[4] = {
         0x53, 0x58, 0x7B, 0x99
     };
 
-    uint8_t d[64];
+    uint8_t *d = malloc(d_length / 8);
 
-    keccak(1600, 576, M, 32, 0x40, d, 512);
+    keccak(b, r, M, 32, d, 512);
+
+    for(int i = 0; i < d_length / 8; i++)
+    {
+        printf("%02hhX", d[i]);
+    }
 
     return 0;
 }
